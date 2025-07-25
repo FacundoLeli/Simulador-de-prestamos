@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Préstamos</title>
+    <link rel="icon" type="image/x-icon" href="https://example.com/favicon.ico"> <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+</head>
+<body>
+    <header>
+        <h1>Simulador de Préstamos Personales</h1>
+    </header>
+
+    <main>
+        <section class="form-container">
+            <h2>Calcula tu Préstamo</h2>
+            <form id="loanForm">
+                <div class="input-group">
+                    <label for="nombreCliente">Nombre Completo:</label>
+                    <input type="text" id="nombreCliente" placeholder="Ej: Juan Pérez" required>
+                    <span class="error-message" id="errorNombre"></span>
+                </div>
+                <div class="input-group">
+                    <label for="ingresosMensuales">Ingresos Mensuales Netos ($):</label>
+                    <input type="number" id="ingresosMensuales" placeholder="Ej: 150000" min="0" required>
+                    <span class="error-message" id="errorIngresos"></span>
+                </div>
+                <div class="input-group">
+                    <label for="edadCliente">Edad:</label>
+                    <input type="number" id="edadCliente" placeholder="Ej: 30" min="18" max="99" required>
+                    <span class="error-message" id="errorEdad"></span>
+                </div>
+                <div class="input-group">
+                    <label for="monto">Monto Solicitado ($):</label>
+                    <input type="number" id="monto" placeholder="Ej: 50000" min="10000" max="500000" required>
+                    <span class="error-message" id="errorMonto"></span>
+                </div>
+                <div class="input-group">
+                    <label for="plazo">Plazo en Meses:</label>
+                    <input type="number" id="plazo" placeholder="Ej: 12" min="6" max="60" required>
+                    <span class="error-message" id="errorPlazo"></span>
+                </div>
+                <button type="button" id="btnCalcular">Calcular Préstamo</button>
+            </form>
+
+            <div class="results-container">
+                <h3>Resultados del Cálculo:</h3>
+                <p>Cuota Mensual: <span id="cuotaMensual">$0.00</span></p>
+                <p>Monto Total a Devolver: <span id="montoTotalDevolver">$0.00</span></p>
+            </div>
+        </section>
+
+        <section class="history-container">
+            <h2>Historial de Préstamos</h2>
+            <button id="limpiarHistorial" class="clear-history-btn">Limpiar Todo el Historial</button>
+            <div id="historialLista" class="historial-list">
+                </div>
+        </section>
+    </main>
+
+    <div id="confirmDialog" class="confirm-dialog-overlay">
+        <div class="confirm-dialog-content">
+            <p id="confirmMessage"></p>
+            <div class="confirm-dialog-buttons">
+                <button id="confirmClear">Sí</button>
+                <button id="cancelClear">No</button>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2025 Simulador de Préstamos. Todos los derechos reservados.</p>
+    </footer>
+
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

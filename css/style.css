@@ -1,0 +1,312 @@
+/* Estilos Generales */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f7f6;
+    color: #333;
+    line-height: 1.6;
+}
+
+header {
+    background-color: #0056b3;
+    color: #ffffff;
+    padding: 0.1rem;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+h1, h2, h3 {
+    color: #0056b3;
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+main {
+    max-width: 1200px;
+    margin: 2rem auto;
+    padding: 1.5rem;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+}
+
+@media (min-width: 768px) {
+    main {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* Sección de Formulario y Resultados */
+.form-container, .history-container {
+    padding: 1.5rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background-color: #fcfcfc;
+}
+
+.input-group {
+    margin-bottom: 1rem;
+}
+
+label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+    color: #555;
+}
+
+input[type="text"],
+input[type="number"] {
+    width: calc(100% - 20px);
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus {
+    border-color: #007bff;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+button {
+    display: block;
+    width: 100%;
+    padding: 12px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    margin-top: 1.5rem;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+button:active {
+    background-color: #004085;
+}
+
+.results-container {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e0e0e0;
+}
+
+.results-container p {
+    font-size: 1.1rem;
+    margin-bottom: 0.8rem;
+    color: #333;
+}
+
+.results-container span {
+    font-weight: bold;
+    color: #007bff;
+    font-size: 1.2rem;
+}
+
+/* Mensajes de Error */
+.error-message {
+    color: #dc3545;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+    display: block; /* Asegura que el span ocupe su propia línea */
+    height: 0; /* Oculta el espacio si no hay mensaje */
+    overflow: hidden; /* Oculta el texto si height es 0 */
+    transition: height 0.3s ease-out, opacity 0.3s ease-out;
+    opacity: 0;
+}
+
+.error-message.visible {
+    height: 1.2em; /* Altura de una línea de texto */
+    opacity: 1;
+}
+
+/* Sección de Historial */
+.history-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.clear-history-btn {
+    background-color: #dc3545;
+    margin-bottom: 1.5rem;
+}
+
+.clear-history-btn:hover {
+    background-color: #c82333;
+}
+
+.historial-list {
+    flex-grow: 1; /* Permite que la lista crezca y ocupe espacio disponible */
+    border: 1px dashed #cccccc;
+    padding: 1rem;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+    min-height: 150px; /* Asegura un tamaño mínimo visible */
+    overflow-y: auto; /* Agrega scroll si el contenido excede el alto */
+    display: flex; /* Para centrar el mensaje de "no hay historial" */
+    flex-direction: column;
+    justify-content: flex-start; /* Alinea los ítems al inicio */
+}
+
+.no-history-msg {
+    text-align: center;
+    color: #777;
+    font-style: italic;
+    margin: auto; /* Centra el mensaje si no hay ítems */
+    padding: 1rem;
+}
+
+.history-item {
+    background-color: #e9f5ff;
+    border: 1px solid #b8daff;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease-out;
+}
+
+.history-item:last-child {
+    margin-bottom: 0;
+}
+
+.history-item:hover {
+    transform: translateY(-2px);
+}
+
+.history-item strong {
+    color: #0056b3;
+}
+
+.history-item .delete-btn {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.2s ease;
+    width: auto; /* Ancho automático para el botón dentro del ítem */
+    margin-top: 0; /* Elimina el margen superior que viene del estilo global de button */
+    flex-shrink: 0; /* Evita que el botón se achique */
+}
+
+.history-item .delete-btn:hover {
+    background-color: #c82333;
+}
+
+/* Estilos para el Diálogo de Confirmación */
+.confirm-dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    visibility: hidden; /* Oculto por defecto */
+    opacity: 0;
+    transition: visibility 0s, opacity 0.3s ease-out;
+}
+
+.confirm-dialog-overlay.visible {
+    visibility: visible;
+    opacity: 1;
+}
+
+.confirm-dialog-content {
+    background-color: white;
+    padding: 2.5rem;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    width: 90%;
+    max-width: 400px;
+    transform: scale(0.95);
+    transition: transform 0.3s ease-out;
+}
+
+.confirm-dialog-overlay.visible .confirm-dialog-content {
+    transform: scale(1);
+}
+
+.confirm-dialog-content p {
+    font-size: 1.2rem;
+    margin-bottom: 1.5rem;
+    color: #333;
+}
+
+.confirm-dialog-buttons {
+    display: flex;
+    justify-content: space-around;
+    gap: 1rem;
+}
+
+.confirm-dialog-buttons button {
+    flex-basis: 48%; /* Para que los botones se repartan el espacio */
+    padding: 10px 15px;
+    font-size: 1rem;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    margin-top: 0; /* Anula el margen top del botón global */
+}
+
+#confirmClear {
+    background-color: #28a745; /* Color verde para Sí */
+    color: white;
+    border: none;
+}
+
+#confirmClear:hover {
+    background-color: #218838;
+}
+
+#cancelClear {
+    background-color: #6c757d; /* Color gris para No */
+    color: white;
+    border: none;
+}
+
+#cancelClear:hover {
+    background-color: #5a6268;
+}
+
+/* Estilos de Toastify (ya vienen con la librería, pero se pueden sobrescribir si es necesario) */
+.toastify {
+    border-radius: 5px !important;
+    font-size: 0.95rem !important;
+    padding: 12px 20px !important;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23) !important;
+}
+
+footer {
+    text-align: center;
+    padding: 1rem;
+    margin-top: 2rem;
+    background-color: #0056b3;
+    color: white;
+    font-size: 0.9rem;
+    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1);
+}
