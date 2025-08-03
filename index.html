@@ -1,80 +1,131 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simulador de Préstamos</title>
-    <link rel="icon" type="image/x-icon" href="https://example.com/favicon.ico"> <link rel="stylesheet" href="css/style.css">
-    
-    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+  <meta charset="utf-8">
+  <title>Simulación de préstamo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Simulá tu préstamo sin vueltas. Ponés tus datos y te tiramos una cuota aproximada.">
+  <link rel="icon" href="favicon.ico">
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Estilos de Toastify -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
 </head>
 <body>
-    <header>
-        <h1>Simulador de Préstamos Personales</h1>
+  <main class="contenedor">
+    <!-- Encabezado principal -->
+    <header class="encabezado">
+      <h1>Simulación de préstamo</h1>
+      <p class="ayuda">Completá lo básico y te mostramos una cuota orientativa. Sin compromiso.</p>
     </header>
 
-    <main>
-        <section class="form-container">
-            <h2>Calcula tu Préstamo</h2>
-            <form id="loanForm">
-                <div class="input-group">
-                    <label for="nombreCliente">Nombre Completo:</label>
-                    <input type="text" id="nombreCliente" placeholder="Ej: Juan Pérez" required>
-                    <span class="error-message" id="errorNombre"></span>
-                </div>
-                <div class="input-group">
-                    <label for="ingresosMensuales">Ingresos Mensuales Netos ($):</label>
-                    <input type="number" id="ingresosMensuales" placeholder="Ej: 150000" min="0" required>
-                    <span class="error-message" id="errorIngresos"></span>
-                </div>
-                <div class="input-group">
-                    <label for="edadCliente">Edad:</label>
-                    <input type="number" id="edadCliente" placeholder="Ej: 30" min="18" max="99" required>
-                    <span class="error-message" id="errorEdad"></span>
-                </div>
-                <div class="input-group">
-                    <label for="monto">Monto Solicitado ($):</label>
-                    <input type="number" id="monto" placeholder="Ej: 50000" min="10000" max="500000" required>
-                    <span class="error-message" id="errorMonto"></span>
-                </div>
-                <div class="input-group">
-                    <label for="plazo">Plazo en Meses:</label>
-                    <input type="number" id="plazo" placeholder="Ej: 12" min="6" max="60" required>
-                    <span class="error-message" id="errorPlazo"></span>
-                </div>
-                <button type="button" id="btnCalcular">Calcular Préstamo</button>
-            </form>
+    <!-- Formulario de datos del usuario y del préstamo -->
+    <section class="bloque bloque--claro" id="area-datos">
+      <h2 class="titulo">
+        Datos y pedido <small class="aclaracion">con lo justo alcanza</small>
+      </h2>
 
-            <div class="results-container">
-                <h3>Resultados del Cálculo:</h3>
-                <p>Cuota Mensual: <span id="cuotaMensual">$0.00</span></p>
-                <p>Monto Total a Devolver: <span id="montoTotalDevolver">$0.00</span></p>
+      <!-- Validaciónes por JS -->
+      <form id="formSimulador" action="#" method="get" novalidate>
+        <fieldset>
+          <legend>Tu info</legend>
+
+          <!-- Nombre y apellido -->
+          <div class="fila">
+            <label for="nombreCliente">Nombre y apellido</label>
+            <input id="nombreCliente" type="text" placeholder="Ej: Lara Ortiz / Matías Varela" autocomplete="name" required>
+            <!-- Contenedor para mostrar error del nombre -->
+            <small id="errorNombre" class="msg" aria-live="polite"></small>
+          </div>
+
+          <!-- Ingresos y edad -->
+          <div class="fila fila--2col">
+            <div>
+              <label for="ingresosMensuales">Ingresos por mes (ARS)</label>
+              <input id="ingresosMensuales" type="number" min="1" step="1000" inputmode="decimal" placeholder="Ej: 480000 · 525000" required>
+              <!-- Error ingresos -->
+              <small id="errorIngresos" class="msg" aria-live="polite"></small>
             </div>
-        </section>
-
-        <section class="history-container">
-            <h2>Historial de Préstamos</h2>
-            <button id="limpiarHistorial" class="clear-history-btn">Limpiar Todo el Historial</button>
-            <div id="historialLista" class="historial-list">
-                </div>
-        </section>
-    </main>
-
-    <div id="confirmDialog" class="confirm-dialog-overlay">
-        <div class="confirm-dialog-content">
-            <p id="confirmMessage"></p>
-            <div class="confirm-dialog-buttons">
-                <button id="confirmClear">Sí</button>
-                <button id="cancelClear">No</button>
+            <div>
+              <label for="edadCliente">Edad</label>
+              <input id="edadCliente" type="number" min="18" max="99" step="1" placeholder="Ej: 28 / 36" required>
+              <!-- Error edad -->
+              <small id="errorEdad" class="msg" aria-live="polite"></small>
             </div>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Préstamo</legend>
+          <!-- Monto y plazo -->
+          <div class="fila fila--2col">
+            <div>
+              <label for="monto">Monto solicitado (ARS)</label>
+              <input id="monto" type="number" min="10000" max="500000" step="1000" inputmode="decimal" placeholder="Ej: 160000 · 230000" required>
+              <!-- Error monto -->
+              <small id="errorMonto" class="msg" aria-live="polite"></small>
+            </div>
+            <div>
+              <label for="plazo">Plazo (meses)</label>
+              <input id="plazo" type="number" min="6" max="60" step="1" placeholder="Ej: 12 / 18 / 24" required>
+              <!-- Error plazo -->
+              <small id="errorPlazo" class="msg" aria-live="polite"></small>
+            </div>
+          </div>
+
+          <!-- Botón principal: se habilita cuando los campos están ok -->
+          <button id="btnCalcular" type="button" disabled>Calcular cuota</button>
+          <!-- Tip contextual para el usuario -->
+          <p class="pista" id="hintAuto">Tip: presioná “Calcular cuota” cuando completes los campos.</p>
+        </fieldset>
+      </form>
+    </section>
+
+    <!-- Área de resultados -->
+    <section class="bloque bloque--resultado" id="area-resultado" aria-labelledby="tit-resultado">
+      <header class="cinta">
+        <span id="tit-resultado">Resultado rápido</span>
+      </header>
+
+      <div class="resultado" aria-live="polite">
+        <p>Cuota por mes: <strong><span id="cuotaMensual">-</span></strong></p>
+        <p>Total aproximado a pagar: <strong><span id="montoTotalDevolver">-</span></strong></p>
+        <p class="nota"><em>Ojo:</em> es un estimado; al confirmar puede variar por tasa y gastos.</p>
+      </div>
+    </section>
+
+    <!-- Historial de simulaciones con botón para vaciar -->
+    <aside class="bloque bloque--hist" id="area-historial" aria-labelledby="tit-hist">
+      <div class="cab-hist">
+        <h2 class="titulo" id="tit-hist">Historial</h2>
+        <!-- Limpia todo el historial -->
+        <button id="limpiarHistorial" type="button" class="btn-sec">Vaciar</button>
+      </div>
+
+      <div id="historialLista" class="historial" aria-live="polite">
+        <!-- Estado inicial del historial: vacío -->
+        <p class="historial__vacio">Acá se guarda lo que vas probando. Si algo no sirve, lo borrás y listo.</p>
+      </div>
+    </aside>
+
+    <!-- Diálogo de confirmación reutilizable (borrado individual/total) -->
+    <div id="confirmDialog" class="dialogo" role="dialog" aria-modal="true" hidden>
+      <div class="dialogo__caja">
+        <p id="confirmMessage">¿Seguro? Esta acción no tiene vuelta atrás.</p>
+        <div class="dialogo__acciones">
+          <button id="confirmClear" type="button" class="btn">Sí, dale</button>
+          <button id="cancelClear" type="button" class="btn btn-sec">Mejor no</button>
         </div>
+      </div>
     </div>
 
-    <footer>
-        <p>&copy; 2025 Simulador de Préstamos. Todos los derechos reservados.</p>
+    <!-- Pie de página con una nota de versión -->
+    <footer class="pie">
+      Hecho con cafe y un par de pruebas fallidas ☕️ — versión 1.2
     </footer>
+  </main>
 
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
-    <script src="js/main.js"></script>
+  <!-- Librería de toasts -->
+  <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+  <script src="js/main.js"></script>
 </body>
 </html>

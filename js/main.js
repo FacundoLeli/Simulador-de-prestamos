@@ -1,422 +1,409 @@
-// --- DECLARACIÓN DE CONSTANTES Y VARIABLES GLOBALES ---
-let TASA_INTERES_ANUAL_BASE; // Se cargará del JSON
-let COMISION_APERTURA;     // Se cargará del JSON
+// Simulador de préstamo
 
-const MIN_MONTO_PRESTAMO = 10000;
-const MAX_MONTO_PRESTAMO = 500000;
-const MIN_PLAZO_MESES = 6;
-const MAX_PLAZO_MESES = 60;
-const MIN_EDAD_CLIENTE = 18;
-const MAX_EDAD_CLIENTE = 99;
-const MIN_INGRESOS_PARA_PRESTAMO = 100000;
+// Helper para seleccionar nodos del DOM
+const $ = (selector, root = document) => root.querySelector(selector);
 
-// Array principal para almacenar los préstamos en memoria.
-let historialPrestamos = [];
+// Referencias a elementos de la UI
+const ui = {
+  nombre: $('#nombreCliente'),
+  ingresos: $('#ingresosMensuales'),
+  edad: $('#edadCliente'),
+  monto: $('#monto'),
+  plazo: $('#plazo'),
+  btn: $('#btnCalcular'),
+  cuota: $('#cuotaMensual'),
+  total: $('#montoTotalDevolver'),
+  histWrap: $('#historialLista'),
+  vaciarBtn: $('#limpiarHistorial'),
+  dlg: $('#confirmDialog'),
+  dlgMsg: $('#confirmMessage'),
+  dlgOk: $('#confirmClear'),
+  dlgNo: $('#cancelClear')
+};
 
-// --- REFERENCIAS A ELEMENTOS DEL DOM ---
-const inputNombre = document.getElementById('nombreCliente');
-const inputIngresos = document.getElementById('ingresosMensuales');
-const inputEdad = document.getElementById('edadCliente');
-const inputMonto = document.getElementById('monto');
-const inputPlazo = document.getElementById('plazo');
+// Contenedores de mensajes de error por campo
+const uiErr = {
+  nombre: $('#errorNombre'),
+  ingresos: $('#errorIngresos'),
+  edad: $('#errorEdad'),
+  monto: $('#errorMonto'),
+  plazo: $('#errorPlazo')
+};
 
-const btnCalcular = document.getElementById('btnCalcular'); 
-const limpiarHistorialBtn = document.getElementById('limpiarHistorial'); 
+// RNG con “seed” diaria 
+const rnd = (() => {
+  const d = new Date();
+  // combinación simple de año/mes/día como semilla
+  let x = (d.getFullYear() * 1337) + (d.getMonth() + 1) * 71 + d.getDate();
+  // LCG clásico
+  return () => (x = (x * 1664525 + 1013904223) >>> 0) / 4294967296;
+})();
 
-const spanCuotaMensual = document.getElementById('cuotaMensual');
-const spanMontoTotalDevolver = document.getElementById('montoTotalDevolver');
-const divHistorialLista = document.getElementById('historialLista');
+// Utilidades de aleatoriedad/elección
+const R = {
+  // Elige un elemento al azar de un array
+  p: a => a[Math.floor(rnd() * a.length)],
+  // True/false con probabilidad x
+  c: (x = 0.5) => rnd() < x,
+  // Separador visual aleatorio para textos
+  pausa: () => R.p(['—', '…', ' · ', ''])
+};
 
-const errorNombre = document.getElementById('errorNombre');
-const errorIngresos = document.getElementById('errorIngresos');
-const errorEdad = document.getElementById('errorEdad');
-const errorMonto = document.getElementById('errorMonto');
-const errorPlazo = document.getElementById('errorPlazo');
+// Copys de UI con variaciones mínimas para no repetir siempre lo mismo
+const TX = {
+  okCalc: ({ monto, plazo }) => R.p([
+    `Ok. ${R.pausa()} ${plazo} meses. Ajustable si hace falta.`,
+    `Hecho. Cuota y total arriba.`,
+    `Listo, números listos.`
+  ]),
+  okDel: ['Borrado.', 'Eliminado.', 'Fuera.'],
+  okClear: ['Vacío.', 'Limpio.', 'En cero.'],
+  errVal: ['Revisá lo marcado.', 'Falta completar.', 'Hay que corregir.'],
+  qDel: ['¿Borrar este?', '¿Eliminar?', '¿Lo sacamos?'],
+  qClear: ['Borra todo, ¿seguimos?', '¿Limpiar completo?', '¿Dejar en cero?']
+};
 
-const confirmDialog = document.getElementById('confirmDialog');
-const confirmMessage = document.getElementById('confirmMessage');
-const confirmClearBtn = document.getElementById('confirmClear');   
-const cancelClearBtn = document.getElementById('cancelClear');     
-
-let accionConfirmacionPendiente = null;
-let idItemAEliminar = null;
-
-// --- FUNCIONES DE UTILIDAD PARA EL DOM Y MENSAJES (con Toastify) ---
-
-function mostrarErrorEnCampo(elementoError, mensaje) {
-    if (elementoError) {
-        elementoError.textContent = mensaje;
-        elementoError.classList.add('visible');
-    }
+// Formatea números a moneda ARS con fallback
+function aMoneda(n) {
+  const v = +n;
+  if (!Number.isFinite(v)) return '$0';
+  try {
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      maximumFractionDigits: 2
+    }).format(v);
+  } catch {
+    // Fallback si Intl no está disponible
+    return '$' + (Math.round(v * 100) / 100).toLocaleString('es-AR');
+  }
 }
 
-function ocultarErrorDeCampo(elementoError) {
-    if (elementoError) {
-        elementoError.textContent = '';
-        elementoError.classList.remove('visible');
-    }
-}
-
-function mostrarNotificacion(mensaje, tipo = 'info') {
-    let backgroundColor = "#0056b3";
-    if (tipo === 'success') {
-        backgroundColor = "#28a745";
-    } else if (tipo === 'error') {
-        backgroundColor = "#dc3545";
-    } else if (tipo === 'warning') {
-        backgroundColor = "#ffc107";
-    }
-
+// Muestra avisos
+function avisar(txt, tipo) {
+  const bg = ({ ok: '#2ecc71', err: '#e74c3c', info: '#1856a6' })[tipo] || '#1856a6';
+  if (typeof Toastify === 'function') {
     Toastify({
-        text: mensaje,
-        duration: 3000,
-        close: true,
-        gravity: "bottom", 
-        position: "right", 
-        stopOnFocus: true,
-        style: {
-            background: backgroundColor,
-        },
+      text: String(txt || ''),
+      duration: 1100 + Math.floor(rnd() * 1500),
+      gravity: R.c(0.7) ? 'top' : 'bottom',
+      position: R.c(0.52) ? 'right' : 'left',
+      backgroundColor: bg,
+      stopOnFocus: true
     }).showToast();
+  } else {
+    console.log(`[${tipo || 'info'}] ${txt}`);
+  }
 }
 
-function mostrarConfirmacionEnDOM(mensaje, accion, id = null) {
-    console.log(`%c[Confirmación] Mostrando diálogo para acción: ${accion}, ID: ${id}`, 'color: blue;');
-    confirmMessage.textContent = mensaje;
-    accionConfirmacionPendiente = accion;
-    idItemAEliminar = id;
-    confirmDialog.classList.add('visible');
+// Coloca/limpia mensajes de error en pantalla y alterna visibilidad
+function setErr(el, msg) {
+  if (el) {
+    el.textContent = msg || '';
+    el.classList.toggle('visible', !!msg);
+  }
 }
 
-function ocultarConfirmacionEnDOM() {
-    console.log("%c[Confirmación] Ocultando diálogo.", 'color: blue;');
-    confirmDialog.classList.remove('visible');
-    accionConfirmacionPendiente = null;
-    idItemAEliminar = null;
+// Valida los campos de entrada. Devuelve un array con los nombres de campos con error.
+function revisarCampos() {
+  const e = [];
+
+  // Nombre: mínimo 3 caracteres, sin números
+  const nom = String(ui.nombre.value || '').trim();
+  if (/^\d+\s?/.test(nom)) {
+    setErr(uiErr.nombre, R.p(['Sin números al inicio.', 'Probá sin números.']));
+    e.push('nombre');
+  } else if (nom.length < 3) {
+    setErr(uiErr.nombre, R.p(['Nombre y apellido.', 'Muy corto.']));
+    e.push('nombre');
+  } else if (/\d/.test(nom)) {
+    setErr(uiErr.nombre, R.p(['El nombre no lleva números.', 'Quitá los números.']));
+    e.push('nombre');
+  } else {
+    setErr(uiErr.nombre, '');
+  }
+
+  // Ingresos: número válido positivo
+  const ing = +ui.ingresos.value;
+  if (!Number.isFinite(ing) || ing < 1) {
+    setErr(uiErr.ingresos, R.p(['Ingresos inválidos.', 'Revisá ingresos.']));
+    e.push('ingresos');
+  } else {
+    setErr(uiErr.ingresos, '');
+  }
+
+  // Edad: rango 18–99
+  const ed = +ui.edad.value;
+  if (!Number.isFinite(ed) || ed < 18 || ed > 99) {
+    setErr(uiErr.edad, R.p(['Edad 18–99.', 'Revisá edad.']));
+    e.push('edad');
+  } else {
+    setErr(uiErr.edad, '');
+  }
+
+  // Monto: rango permitido
+  const mon = +ui.monto.value;
+  if (!Number.isFinite(mon) || mon < 10000 || mon > 500000) {
+    setErr(uiErr.monto, R.p(['Monto $10.000–$500.000.', 'Revisá monto.']));
+    e.push('monto');
+  } else {
+    setErr(uiErr.monto, '');
+  }
+
+  // Plazo: 6–60 meses
+  const plz = +ui.plazo.value;
+  if (!Number.isFinite(plz) || plz < 6 || plz > 60) {
+    setErr(uiErr.plazo, R.p(['Plazo 6–60.', 'Revisá plazo.']));
+    e.push('plazo');
+  } else {
+    setErr(uiErr.plazo, '');
+  }
+
+  return e;
 }
 
-// --- GESTIÓN DE LOCALSTORAGE ---
+// Habilita/deshabilita el botón principal según la validación
+function activarBoton() {
+  ui.btn.disabled = revisarCampos().length > 0;
+}
 
-function cargarHistorialDesdeStorage() {
-    console.log("%c[LocalStorage] Intentando cargar historial...", 'color: green;');
-    const historialGuardado = localStorage.getItem('historialPrestamos');
-    if (historialGuardado) {
-        try {
-            const parsedHistorial = JSON.parse(historialGuardado) || [];
-            historialPrestamos = parsedHistorial.filter(item => 
-                typeof item === 'object' && item !== null && typeof item.id !== 'undefined'
-            ).map(item => ({ ...item, id: parseInt(item.id) || 0 }));
-            
-            historialPrestamos.sort((a, b) => a.id - b.id);
-            console.log(`%c[LocalStorage] Historial cargado. Elementos: ${historialPrestamos.length}`, 'color: green;');
+// Estima una tasa mensual según el plazo y un perfil simple del usuario
+function tasaPorPlazo(meses) {
+  const n = +meses || 0;
+  // Base por tramo de plazo
+  let base = n <= 12 ? 0.035 : n <= 24 ? 0.040 : n <= 36 ? 0.045 : 0.050;
 
-        } catch (e) {
-            console.error("%c[LocalStorage ERROR] Error al parsear historial de LocalStorage, se usará historial vacío:", 'color: red;', e);
-            mostrarNotificacion("Error al cargar historial guardado. Se ha reiniciado.", "error");
-            historialPrestamos = [];
+  // Ajustes muy básicos por ingresos, edad y monto
+  const ing = +ui.ingresos.value || 0;
+  const edad = +ui.edad.value || 0;
+  const mon = +ui.monto.value || 0;
+  if (ing > 800000) base -= 0.0004;
+  if (edad >= 25 && edad <= 40) base -= 0.0002;
+  if (edad < 23) base += 0.0004;
+  if (mon >= 200000 && mon < 350000) base += 0.0002;
+  else if (mon >= 350000) base += 0.0003;
+
+  // Cota inferior y superior por seguridad
+  return Math.max(0.01, Math.min(0.20, base));
+}
+
+// Calcula la cuota por sistema francés: cuota = P * i / (1 - (1+i)^-n)
+function cuotaMensual(monto, i, n) {
+  n = Math.max(1, +n || 0);
+  const p = +monto || 0;
+  if (!(i > 0)) return p / n; // sin tasa, prorratea
+  const den = 1 - Math.pow(1 + i, -n);
+  if (den === 0) return p / n;
+  const c = (p * i) / den;
+  return Number.isFinite(c) && c >= 0 ? c : p / n;
+}
+
+// Clave de localStorage para historial
+const KEY = 'k.n12b';
+
+// Fallback de memoria en caso de error con localStorage
+let mem = [];
+
+// Carga historial desde localStorage (o memoria)
+function cargarHist() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return mem.slice();
+  }
+}
+
+// Guarda historial
+function guardarHist(a) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(a));
+  } catch {
+    mem = a.slice();
+  }
+}
+
+// Agrega un ítem al inicio del historial y repinta
+function pushHist(it) {
+  const l = cargarHist();
+  l.unshift(it);
+  guardarHist(l);
+  pintarHist(l);
+}
+
+// Limpia historial
+function limpiarHist() {
+  try {
+    localStorage.removeItem(KEY);
+    localStorage.setItem(KEY, '[]');
+  } catch {
+    mem = [];
+  }
+  pintarHist([]);
+}
+
+// Renderiza el historial en la UI
+function pintarHist(lista) {
+  const w = ui.histWrap;
+  w.innerHTML = '';
+
+  // Mensaje vacío
+  if (!lista || !lista.length) {
+    const p = document.createElement('p');
+    p.className = 'historial__vacio';
+    p.textContent = R.p([
+      'Acá guardamos lo que vas probando.',
+      'Tus cálculos quedan acá.',
+      'Lo que calcules aparece acá.'
+    ]);
+    return w.appendChild(p);
+  }
+
+  // Ítems del historial
+  lista.forEach((it, i) => {
+    const fila = document.createElement('div');
+    fila.className = 'hist-item';
+    fila.dataset.index = String(i);
+
+    const info = document.createElement('div');
+    info.className = 'info';
+    info.textContent = R.p([
+      `Monto ${aMoneda(it?.monto)} · ${it?.plazo} meses · Cuota ${aMoneda(it?.cuota)}`,
+      `${aMoneda(it?.monto)} a ${it?.plazo} meses ${R.pausa()} cuota ${aMoneda(it?.cuota)}`
+    ]);
+
+    const acciones = document.createElement('div');
+    acciones.className = 'acciones';
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn-sec';
+    b.textContent = R.p(['Borrar', 'Eliminar']);
+
+    // Borrado con confirmación
+    b.addEventListener('click', e => {
+      const idx = Number(e.currentTarget.closest('.hist-item')?.dataset.index);
+      if (!Number.isInteger(idx)) return;
+      abrirConfirm(R.p(TX.qDel), () => {
+        const cur = cargarHist();
+        if (idx >= 0 && idx < cur.length) {
+          cur.splice(idx, 1);
+          guardarHist(cur);
+          pintarHist(cur);
+          avisar(R.p(TX.okDel), 'ok');
         }
-    } else {
-        historialPrestamos = [];
-        console.log("%c[LocalStorage] No se encontró historial guardado. Historial vacío.", 'color: green;');
-    }
-    mostrarHistorialEnDOM(); 
-}
-
-function guardarHistorialEnStorage() {
-    console.log(`%c[LocalStorage] Guardando historial. Elementos: ${historialPrestamos.length}`, 'color: green;');
-    localStorage.setItem('historialPrestamos', JSON.stringify(historialPrestamos));
-}
-
-// --- LÓGICA DEL SIMULADOR ---
-
-async function cargarConfiguracionInicial() {
-    console.log("%c[Config] Cargando configuración desde JSON...", 'color: purple;');
-    try {
-        const respuesta = await fetch('./json/config.json'); // Ruta corregida para la carpeta json
-        if (!respuesta.ok) {
-            throw new Error(`Error HTTP: ${respuesta.status}`);
-        }
-        const config = await respuesta.json();
-        TASA_INTERES_ANUAL_BASE = config.tasaInteresAnualBase;
-        COMISION_APERTURA = config.comisionApertura;
-        console.log(`%c[Config] Configuración cargada: Tasa=${TASA_INTERES_ANUAL_BASE}, Comisión=${COMISION_APERTURA}`, 'color: purple;');
-        mostrarNotificacion("Configuración de tasas cargada con éxito.", "success");
-    } catch (error) {
-        console.error("%c[Config ERROR] Hubo un problema al cargar la configuración inicial:", 'color: red;', error);
-        mostrarNotificacion("Error al cargar la configuración. Usando valores por defecto.", "error");
-        TASA_INTERES_ANUAL_BASE = 0.60;
-        COMISION_APERTURA = 0.02;
-    }
-}
-
-function validarTodasLasEntradas(nombre, ingresos, edad, monto, plazo) {
-    let esValido = true;
-    if (inputNombre && nombre.trim() === '') { mostrarErrorEnCampo(errorNombre, "El nombre es obligatorio."); esValido = false; } else { ocultarErrorDeCampo(errorNombre); }
-    if (inputIngresos && (isNaN(ingresos) || ingresos < MIN_INGRESOS_PARA_PRESTAMO)) { mostrarErrorEnCampo(errorIngresos, `Ingresos mínimos de $${MIN_INGRESOS_PARA_PRESTAMO.toLocaleString('es-AR')}.`); esValido = false; } else { ocultarErrorDeCampo(errorIngresos); }
-    if (inputEdad && (isNaN(edad) || edad < MIN_EDAD_CLIENTE || edad > MAX_EDAD_CLIENTE)) { mostrarErrorEnCampo(errorEdad, `La edad debe estar entre ${MIN_EDAD_CLIENTE} y ${MAX_EDAD_CLIENTE} años.`); esValido = false; } else { ocultarErrorDeCampo(errorEdad); }
-    if (inputMonto && (isNaN(monto) || monto < MIN_MONTO_PRESTAMO || monto > MAX_MONTO_PRESTAMO)) { mostrarErrorEnCampo(errorMonto, `Monto entre $${MIN_MONTO_PRESTAMO.toLocaleString('es-AR')} y $${MAX_MONTO_PRESTAMO.toLocaleString('es-AR')}.`); esValido = false; } else { ocultarErrorDeCampo(errorMonto); }
-    if (inputPlazo && (isNaN(plazo) || plazo < MIN_PLAZO_MESES || plazo > MAX_PLAZO_MESES)) { mostrarErrorEnCampo(errorPlazo, `Plazo entre ${MIN_PLAZO_MESES} y ${MAX_PLAZO_MESES} meses.`); esValido = false; } else { ocultarErrorDeCampo(errorPlazo); }
-    
-    if (!esValido) {
-        console.warn("%c[Validación] Errores en el formulario.", 'color: orange;');
-    }
-    return esValido;
-}
-
-function esPrestamoAprobado(monto, ingresos, edad) {
-    console.log(`%c[Aprobación] Evaluando préstamo: Monto=${monto}, Ingresos=${ingresos}, Edad=${edad}`, 'color: teal;');
-    if (edad < MIN_EDAD_CLIENTE) { mostrarNotificacion(`Préstamo RECHAZADO: El solicitante debe tener al menos ${MIN_EDAD_CLIENTE} años.`, "error"); return false; }
-    if (ingresos < MIN_INGRESOS_PARA_PRESTAMO) { mostrarNotificacion(`Préstamo RECHAZADO: Ingresos mensuales insuficientes (mínimo $${MIN_INGRESOS_PARA_PRESTAMO.toLocaleString('es-AR')}).`, "error"); return false; }
-    const ingresosAnuales = ingresos * 12;
-    if (monto > (ingresosAnuales * 0.50)) { mostrarNotificacion("Préstamo RECHAZADO: El monto solicitado excede la capacidad de endeudamiento para sus ingresos.", "error"); return false; }
-    console.log("%c[Aprobación] Préstamo aprobado para cálculo.", 'color: teal;');
-    return true;
-}
-
-function calcularCuotaPrestamo(monto, plazo) {
-    console.log(`%c[Cálculo] Calculando para Monto=${monto}, Plazo=${plazo}, Tasa=${TASA_INTERES_ANUAL_BASE}, Comisión=${COMISION_APERTURA}`, 'color: darkgreen;');
-    let tasaMensual = TASA_INTERES_ANUAL_BASE / 12;
-    if (plazo > 36) { tasaMensual += 0.005; }
-    let interesTotal = monto * tasaMensual * plazo;
-    let comision = monto * COMISION_APERTURA;
-    let montoTotalAPagar = monto + interesTotal + comision;
-    let cuotaMensual = montoTotalAPagar / plazo;
-    
-    console.log(`%c[Cálculo] Cuota Mensual: ${cuotaMensual.toFixed(2)}, Total a Devolver: ${montoTotalAPagar.toFixed(2)}`, 'color: darkgreen;');
-    return { cuota: cuotaMensual, total: montoTotalAPagar };
-}
-
-function mostrarResultadosEnDOM(cuota, total) {
-    console.log(`%c[DOM] Actualizando resultados: Cuota=$${cuota.toFixed(2)}, Total=$${total.toFixed(2)}`, 'color: brown;');
-    if (spanCuotaMensual) {
-        spanCuotaMensual.textContent = "$" + cuota.toFixed(2);
-    }
-    if (spanMontoTotalDevolver) {
-        spanMontoTotalDevolver.textContent = "$" + total.toFixed(2);
-    }
-}
-
-// --- ACTUALIZACIÓN DEL DOM DEL HISTORIAL (Manipulación por nodos) ---
-
-function agregarAlHistorial(datosSolicitante, monto, plazo, cuota, total) {
-    const ahora = new Date();
-    const fechaFormateada = ahora.toLocaleDateString('es-AR');
-
-    const maxId = historialPrestamos.reduce((max, prestamo) => Math.max(max, parseInt(prestamo.id) || 0), 0);
-    const nuevoId = maxId + 1;
-
-    const nuevoPrestamo = {
-        id: nuevoId, 
-        nombre: datosSolicitante.nombre,
-        ingresos: datosSolicitante.ingresos,
-        edad: datosSolicitante.edad,
-        monto: monto,
-        plazo: plazo,
-        cuota: cuota,
-        total: total,
-        fecha: fechaFormateada
-    };
-
-    historialPrestamos.push(nuevoPrestamo);
-    console.log(`%c[Historial] Agregado nuevo préstamo ID: ${nuevoId}. Total de elementos: ${historialPrestamos.length}`, 'color: darkblue;');
-    guardarHistorialEnStorage(); 
-    mostrarHistorialEnDOM(); 
-    mostrarNotificacion("¡Préstamo calculado y guardado con éxito!", "success");
-}
-
-function eliminarPrestamo(idAEliminar) {
-    console.log(`%c[Historial] Intentando eliminar préstamo con ID: ${idAEliminar}`, 'color: darkblue;');
-    const idNumerico = parseInt(idAEliminar); 
-    if (isNaN(idNumerico)) {
-        console.error("%c[Historial ERROR] El ID a eliminar no es un número válido.", 'color: red;', idAEliminar);
-        mostrarNotificacion("Error al intentar eliminar el préstamo. ID inválido.", "error");
-        return;
-    }
-
-    const indiceAEliminar = historialPrestamos.findIndex(prestamo => prestamo.id === idNumerico);
-    if (indiceAEliminar > -1) {
-        const eliminado = historialPrestamos.splice(indiceAEliminar, 1); 
-        console.log(`%c[Historial] Préstamo ID ${idNumerico} eliminado. Nuevo total: ${historialPrestamos.length}`, 'color: darkblue;', eliminado);
-    } else {
-        console.warn(`%c[Historial] No se encontró préstamo con ID: ${idNumerico} para eliminar.`, 'color: orange;');
-    }
-    
-    guardarHistorialEnStorage(); 
-    mostrarHistorialEnDOM(); 
-    mostrarNotificacion("Préstamo eliminado del historial.", "success");
-}
-
-function limpiarTodoElHistorial() {
-    console.log("%c[Historial] Iniciando limpieza de todo el historial.", 'color: darkred; font-weight: bold;');
-    historialPrestamos = []; // Vacía el array en memoria
-    localStorage.removeItem('historialPrestamos'); // Borra la clave del LocalStorage
-    console.log("%c[Historial] Historial vaciado en memoria y LocalStorage. (Verificar pestaña Application > Local Storage)", 'color: darkred; font-weight: bold;');
-    mostrarHistorialEnDOM(); // Refresca el DOM para mostrarlo vacío
-    mostrarNotificacion("¡Todo el historial fue limpiado!", "warning");
-}
-
-function mostrarHistorialEnDOM() {
-    console.log(`%c[DOM Historial] Actualizando lista del historial. Elementos a mostrar: ${historialPrestamos.length}`, 'color: brown;');
-    // Elimina todos los hijos existentes del divHistorialLista
-    while (divHistorialLista.firstChild) {
-        divHistorialLista.removeChild(divHistorialLista.firstChild);
-    }
-
-    if (historialPrestamos.length === 0) {
-        const noHistoryMsg = document.createElement('p');
-        noHistoryMsg.classList.add('no-history-msg');
-        noHistoryMsg.textContent = 'Aún no hay cálculos en el historial. ¡Hacé el primero!'; 
-        divHistorialLista.appendChild(noHistoryMsg);
-        console.log("%c[DOM Historial] Mostrando mensaje de historial vacío.", 'color: brown;');
-        return;
-    }
-
-    const fragment = document.createDocumentFragment();
-    historialPrestamos.forEach(prestamo => {
-        const itemDiv = document.createElement('div');
-        itemDiv.classList.add('history-item');
-        itemDiv.setAttribute('data-id', prestamo.id); 
-
-        itemDiv.innerHTML = `
-            <div>
-                <strong>ID #${prestamo.id} - Fecha: ${prestamo.fecha}</strong><br>
-                <strong>Cliente:</strong> ${prestamo.nombre} (Edad: ${prestamo.edad} años, Ingresos: $${prestamo.ingresos.toFixed(2)})<br>
-                <strong>Monto:</strong> $${prestamo.monto.toFixed(2)} - <strong>Plazo:</strong> ${prestamo.plazo} meses<br>
-                <strong>Cuota:</strong> $${prestamo.cuota.toFixed(2)} - <strong>Total:</strong> $${prestamo.total.toFixed(2)}
-                <span style="font-size: 0.8em; color: #666; display: block; margin-top: 5px;">Click para eliminar o limpiar todo.</span>
-            </div>
-            <button class="delete-btn" data-id="${prestamo.id}">Eliminar</button>
-        `;
-        fragment.appendChild(itemDiv);
+      });
     });
-    divHistorialLista.appendChild(fragment);
-    console.log("%c[DOM Historial] Historial renderizado con elementos.", 'color: brown;');
+
+    acciones.appendChild(b);
+    fila.appendChild(info);
+    fila.appendChild(acciones);
+    w.appendChild(fila);
+  });
 }
 
-// --- MANEJADORES DE EVENTOS ---
+// Abre el modal de confirmación con mensaje y callback onOk
+function abrirConfirm(msj, onOk) {
+  ui.dlgMsg.textContent = msj || '¿Confirmás?';
+  ui.dlg.hidden = false;
+  // requestAnimationFrame para permitir transición CSS
+  requestAnimationFrame(() => ui.dlg.classList.add('visible'));
 
-function handleCalcularClick() {
-    console.log("%c[Evento] Click en Calcular Préstamo.", 'color: #333;');
-    const nombre = inputNombre ? inputNombre.value : '';
-    const ingresos = inputIngresos ? parseFloat(inputIngresos.value) : NaN;
-    const edad = inputEdad ? parseInt(inputEdad.value) : NaN;
-    const monto = inputMonto ? parseFloat(inputMonto.value) : NaN;
-    const plazo = inputPlazo ? parseInt(inputPlazo.value) : NaN;
+  const ok = () => { cerrar(); onOk && onOk(); };
+  const no = () => { cerrar(); };
 
-    if (!validarTodasLasEntradas(nombre, ingresos, edad, monto, plazo)) {
-        mostrarNotificacion("¡Ojo! Hay datos que no están bien. Revisá el formulario.", "error");
-        return;
-    }
-    if (!esPrestamoAprobado(monto, ingresos, edad)) {
-        return;
-    }
+  function cerrar() {
+    ui.dlg.classList.remove('visible');
+    ui.dlg.hidden = true;
+    ui.dlgOk.removeEventListener('click', ok);
+    ui.dlgNo.removeEventListener('click', no);
+  }
 
-    const resultadosCalculo = calcularCuotaPrestamo(monto, plazo);
-    mostrarResultadosEnDOM(resultadosCalculo.cuota, resultadosCalculo.total);
-
-    const datosSolicitante = {
-        nombre: nombre,
-        ingresos: ingresos,
-        edad: edad
-    };
-    agregarAlHistorial(datosSolicitante, monto, plazo, resultadosCalculo.cuota, resultadosCalculo.total);
+  ui.dlgOk.addEventListener('click', ok);
+  ui.dlgNo.addEventListener('click', no);
 }
 
-function handleLimpiarTodoHistorialClick() {
-    console.log("%c[Evento] Click en Limpiar Todo el Historial.", 'color: #333;');
-    mostrarConfirmacionEnDOM("¿Estás seguro de que querés borrar todo el historial?", "limpiarTodo");
+// Cerrar modal clickeando afuera
+ui.dlg.addEventListener('click', e => {
+  if (e.target === ui.dlg) {
+    ui.dlg.classList.remove('visible');
+    ui.dlg.hidden = true;
+  }
+});
+
+// Cerrar modal con Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !ui.dlg.hidden) {
+    ui.dlg.classList.remove('visible');
+    ui.dlg.hidden = true;
+  }
+});
+
+// Acción principal de cálculo: valida, calcula, muestra y guarda en historial
+function accionCalculo() {
+  const prob = revisarCampos();
+  activarBoton();
+  if (prob.length) return avisar(R.p(TX.errVal), 'err');
+
+  const monto = +ui.monto.value;
+  const meses = +ui.plazo.value;
+
+  const tasa = tasaPorPlazo(meses);
+  const cuota = cuotaMensual(monto, tasa, meses);
+  const total = cuota * meses;
+
+  if (!Number.isFinite(cuota) || !Number.isFinite(total)) return;
+
+  ui.cuota.textContent = aMoneda(cuota);
+  ui.total.textContent = aMoneda(total);
+
+  pushHist({ monto, plazo: meses, cuota, total, ts: Date.now() });
+  avisar(TX.okCalc({ monto, plazo: meses }), 'ok');
 }
 
-function handleEliminarItemClick(event) {
-    if (event.target.classList.contains('delete-btn')) {
-        const idDelPrestamo = parseInt(event.target.dataset.id);
-        console.log(`%c[Evento] Click en Eliminar ITEM con ID: ${idDelPrestamo}`, 'color: #333;');
-        mostrarConfirmacionEnDOM("¿De verdad querés eliminar este préstamo del historial?", "eliminarItem", idDelPrestamo);
-    }
+// Limpia campos y resultados y deshabilita botón
+function limpiarTodo() {
+  ui.cuota.textContent = R.c(0.5) ? '-' : '—';
+  ui.total.textContent = R.c(0.5) ? '-' : '—';
+  ui.nombre.value = ui.ingresos.value = ui.edad.value = ui.monto.value = ui.plazo.value = '';
+  setErr(uiErr.nombre, '');
+  setErr(uiErr.ingresos, '');
+  setErr(uiErr.edad, '');
+  setErr(uiErr.monto, '');
+  setErr(uiErr.plazo, '');
+  ui.btn.disabled = true;
 }
 
-function handleConfirmResponse(event) {
-    console.log(`%c[Evento] Click en botón de confirmación: ${event.target.id}`, 'color: #333;');
-    console.log(`%c[Confirmación Debug] Valor de accionConfirmacionPendiente (ANTES): ${accionConfirmacionPendiente}`, 'color: #FF00FF;'); 
-    console.log(`%c[Confirmación Debug] ID del target del evento: ${event.target.id}`, 'color: #FF00FF;'); 
-    console.log(`%c[Confirmación Debug] ID del confirmClearBtn: ${confirmClearBtn ? confirmClearBtn.id : 'N/A'}`, 'color: #FF00FF;'); 
-    console.log(`%c[Confirmación Debug] ID del cancelClearBtn: ${cancelClearBtn ? cancelClearBtn.id : 'N/A'}`, 'color: #FF00FF;'); 
-
-    
-
-    if (event.target.id === 'confirmClear') { 
-        console.log("%c[Confirmación Debug] Target ID coincide con 'confirmClear'.", 'color: #00AA00;'); 
-        if (accionConfirmacionPendiente === 'limpiarTodo') {
-            console.log("%c[Confirmación Debug] Entrando en el bloque de 'limpiarTodo'.", 'color: #FF00FF;'); 
-            console.log("%c[Confirmación] EJECUTANDO: limpiarTodoElHistorial().", 'background: #222; color: #bada55; font-size: 1.1em;');
-            limpiarTodoElHistorial(); 
-        } else if (accionConfirmacionPendiente === 'eliminarItem' && idItemAEliminar !== null) {
-            console.log(`%c[Confirmación Debug] Entrando en el bloque de 'eliminarItem' para ID: ${idItemAEliminar}.`, 'color: #FF00FF;'); 
-            console.log(`%c[Confirmación] EJECUTANDO: eliminarPrestamo(${idItemAEliminar}).`, 'background: #222; color: #bada55; font-size: 1.1em;');
-            eliminarPrestamo(idItemAEliminar); 
-        }
-    } else if (event.target.id === 'cancelClear') { 
-        console.log("%c[Confirmación Debug] Target ID coincide con 'cancelClear'.", 'color: #00AA00;'); 
-        console.log("%c[Confirmación] Acción cancelada por el usuario.", 'color: gray;');
-    } else {
-        console.warn("%c[Confirmación Debug] Click en un elemento inesperado dentro del diálogo.", 'color: orange;'); 
-    }
-    
-    // Se oculta el diálogo y se resetea el estado una vez que la acción fue procesada.
-    console.log(`%c[Confirmación Debug] Valor de accionConfirmacionPendiente (DESPUÉS): ${accionConfirmacionPendiente}`, 'color: #FF00FF;'); 
-    ocultarConfirmacionEnDOM(); 
-}
-
-// --- INICIALIZACIÓN DE LA APLICACIÓN ---
+// Arranque y eventos
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("%c[App Init] DOM completamente cargado. Inicializando...", 'color: #00008b; font-weight: bold;');
-    
-    cargarConfiguracionInicial();
-    cargarHistorialDesdeStorage(); 
-    
-    // Asocia event listeners solo si los elementos existen
-    if (btnCalcular) {
-        btnCalcular.addEventListener('click', handleCalcularClick);
-        console.log("%c[App Init] Event listener para 'btnCalcular' asociado.", 'color: #00008b;');
-    } else {
-        console.error("%c[App Init ERROR] Botón 'btnCalcular' no encontrado.", 'color: red;');
-    }
-    
-    if (limpiarHistorialBtn) { 
-        limpiarHistorialBtn.addEventListener('click', handleLimpiarTodoHistorialClick);
-        console.log("%c[App Init] Event listener para 'limpiarHistorial' asociado.", 'color: #00008b;');
-    } else {
-        console.error("%c[App Init ERROR] Botón 'limpiarHistorial' no encontrado.", 'color: red;');
-    }
+  // Cargar y pintar historial al inicio
+  pintarHist(cargarHist());
+});
 
-    if (divHistorialLista) { 
-        divHistorialLista.addEventListener('click', handleEliminarItemClick); 
-        console.log("%c[App Init] Event listener para 'divHistorialLista' (delegación) asociado.", 'color: #00008b;');
-    } else {
-        console.error("%c[App Init ERROR] Contenedor 'historialLista' no encontrado.", 'color: red;');
-    }
+// Validación reactiva sobre inputs
+['input', 'blur'].forEach(evt => {
+  [ui.nombre, ui.ingresos, ui.edad, ui.monto, ui.plazo].forEach(el => {
+    el.addEventListener(evt, () => {
+      revisarCampos();
+      activarBoton();
+    });
+  });
+});
 
-    if (confirmClearBtn) {
-        confirmClearBtn.addEventListener('click', handleConfirmResponse);
-        console.log("%c[App Init] Event listener para 'confirmClearBtn' asociado.", 'color: #00008b;');
-    } else {
-        console.error("%c[App Init ERROR] Botón 'confirmClearBtn' no encontrado.", 'color: red;');
-    }
-    if (cancelClearBtn) {
-        cancelClearBtn.addEventListener('click', handleConfirmResponse);
-        console.log("%c[App Init] Event listener para 'cancelClearBtn' asociado.", 'color: #00008b;');
-    } else {
-        console.error("%c[App Init ERROR] Botón 'cancelClearBtn' no encontrado.", 'color: red;');
-    }
-    if (confirmDialog) {
-        confirmDialog.addEventListener('click', (e) => {
-            if (e.target === confirmDialog) {
-                ocultarConfirmacionEnDOM(); // También oculta si se hace clic fuera del contenido del diálogo
-                console.log("%c[Evento] Click fuera del diálogo de confirmación. Ocultando.", 'color: gray;');
-            }
-        });
-        console.log("%c[App Init] Event listener para 'confirmDialog' (clic exterior) asociado.", 'color: #00008b;');
-    } else {
-        console.error("%c[App Init ERROR] Diálogo de confirmación 'confirmDialog' no encontrado.", 'color: red;');
-    }
+// Click en “Calcular”
+ui.btn.addEventListener('click', () => {
+  if (revisarCampos().length) {
+    avisar(R.p(TX.errVal), 'err');
+    return;
+  }
+  accionCalculo();
+});
+
+// Click en “Limpiar historial”
+ui.vaciarBtn.addEventListener('click', () => {
+  abrirConfirm(R.p(TX.qClear), () => {
+    limpiarHist();
+    limpiarTodo();
+    avisar(R.p(TX.okClear), 'ok');
+  });
 });
